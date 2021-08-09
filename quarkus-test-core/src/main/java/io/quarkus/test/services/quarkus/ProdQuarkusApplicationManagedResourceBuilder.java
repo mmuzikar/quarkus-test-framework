@@ -10,6 +10,7 @@ import java.util.ServiceLoader;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.exporter.ExplodedExporter;
 import org.jboss.shrinkwrap.api.spec.JavaArchive;
+import org.junit.jupiter.api.condition.OS;
 
 import io.quarkus.bootstrap.app.AugmentAction;
 import io.quarkus.bootstrap.app.AugmentResult;
@@ -19,7 +20,6 @@ import io.quarkus.test.bootstrap.ManagedResource;
 import io.quarkus.test.bootstrap.ServiceContext;
 import io.quarkus.test.common.PathTestHelper;
 import io.quarkus.test.services.QuarkusApplication;
-import io.quarkus.test.services.quarkus.model.LaunchMode;
 import io.quarkus.test.services.quarkus.model.QuarkusProperties;
 import io.quarkus.test.utils.FileUtils;
 import io.quarkus.test.utils.ReflectionUtils;
@@ -27,20 +27,16 @@ import io.quarkus.test.utils.ReflectionUtils;
 public class ProdQuarkusApplicationManagedResourceBuilder extends QuarkusApplicationManagedResourceBuilder {
 
     private static final String NATIVE_RUNNER = "-runner";
+    private static final String EXE = ".exe";
     private static final String JVM_RUNNER = "-runner.jar";
-    private static final String QUARKUS_APP = "quarkus-app/";
+    private static final String QUARKUS_APP = "quarkus-app";
     private static final String QUARKUS_RUN = "quarkus-run.jar";
 
     private final ServiceLoader<QuarkusApplicationManagedResourceBinding> managedResourceBindingsRegistry = ServiceLoader
             .load(QuarkusApplicationManagedResourceBinding.class);
 
-    private LaunchMode launchMode = LaunchMode.JVM;
     private Path artifact;
     private QuarkusManagedResource managedResource;
-
-    protected LaunchMode getLaunchMode() {
-        return launchMode;
-    }
 
     protected Path getArtifact() {
         return artifact;
@@ -67,7 +63,7 @@ public class ProdQuarkusApplicationManagedResourceBuilder extends QuarkusApplica
     }
 
     public void build() {
-        detectLaunchMode();
+        copyResourcesToAppFolder();
         if (managedResource.needsBuildArtifact()) {
             tryToReuseOrBuildArtifact();
         }
@@ -87,7 +83,13 @@ public class ProdQuarkusApplicationManagedResourceBuilder extends QuarkusApplica
         Optional<String> artifactLocation = Optional.empty();
         if (!containsBuildProperties() && !isSelectedAppClasses()) {
             if (QuarkusProperties.isNativePackageType(getContext())) {
-                artifactLocation = FileUtils.findTargetFile(NATIVE_RUNNER);
+                String nativeRunnerExpectedLocation = NATIVE_RUNNER;
+                if (OS.WINDOWS.isCurrentOs()) {
+                    nativeRunnerExpectedLocation += EXE;
+                }
+
+                artifactLocation = FileUtils.findTargetFile(nativeRunnerExpectedLocation);
+
             } else {
                 artifactLocation = FileUtils.findTargetFile(JVM_RUNNER)
                         .or(() -> FileUtils.findTargetFile(QUARKUS_APP, QUARKUS_RUN));
@@ -103,11 +105,11 @@ public class ProdQuarkusApplicationManagedResourceBuilder extends QuarkusApplica
 
     private Path buildArtifact() {
         try {
+            createSnapshotOfBuildProperties();
             Path appFolder = getContext().getServiceFolder();
+
             JavaArchive javaArchive = ShrinkWrap.create(JavaArchive.class).addClasses(getAppClasses());
             javaArchive.as(ExplodedExporter.class).exportExplodedInto(appFolder.toFile());
-
-            copyResourcesToAppFolder();
 
             Path testLocation = PathTestHelper.getTestClassesLocation(getContext().getTestContext().getRequiredTestClass());
             QuarkusBootstrap.Builder builder = QuarkusBootstrap.builder().setApplicationRoot(appFolder)
@@ -139,16 +141,6 @@ public class ProdQuarkusApplicationManagedResourceBuilder extends QuarkusApplica
         }
 
         return null;
-    }
-
-    private void detectLaunchMode() {
-        if (QuarkusProperties.isNativePackageType(getContext())) {
-            launchMode = LaunchMode.NATIVE;
-        } else if (QuarkusProperties.isLegacyJarPackageType(getContext())) {
-            launchMode = LaunchMode.LEGACY_JAR;
-        } else {
-            launchMode = LaunchMode.JVM;
-        }
     }
 
 }

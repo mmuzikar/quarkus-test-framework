@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -22,6 +23,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 
@@ -71,6 +73,7 @@ public final class OpenShiftClient {
     private static final int PROJECT_NAME_SIZE = 10;
     private static final int PROJECT_CREATION_RETRIES = 5;
     private static final String OPERATOR_PHASE_INSTALLED = "Succeeded";
+    private static final String BUILD_FAILED_STATUS = "Failed";
     private static final String CUSTOM_RESOURCE_EXPECTED_TYPE = "Ready";
     private static final String CUSTOM_RESOURCE_EXPECTED_STATUS = "True";
 
@@ -107,12 +110,44 @@ public final class OpenShiftClient {
      *
      * @param file
      */
-    public void apply(Service service, Path file) {
+    public void apply(Path file) {
+        applyInProject(file, currentNamespace);
+    }
+
+    /**
+     * Apply the file into OpenShift.
+     *
+     * @param file YAML file to apply
+     * @param project where to apply the YAML file.
+     */
+    public void applyInProject(Path file, String project) {
         try {
-            new Command(OC, "apply", "-f", file.toAbsolutePath().toString(), "-n", currentNamespace).runAndWait();
+            new Command(OC, "apply", "-f", file.toAbsolutePath().toString(), "-n", project).runAndWait();
         } catch (Exception e) {
-            fail("Failed to apply resource " + file.toAbsolutePath().toString() + " for " + service.getName() + " . Caused by "
-                    + e.getMessage());
+            fail("Failed to apply resource " + file.toAbsolutePath().toString() + " . Caused by " + e.getMessage());
+        }
+    }
+
+    /**
+     * Delete the file into OpenShift.
+     *
+     * @param file
+     */
+    public void delete(Path file) {
+        deleteInProject(file, currentNamespace);
+    }
+
+    /**
+     * Delete the file into OpenShift.
+     *
+     * @param file YAML file to apply
+     * @param project where to apply the YAML file.
+     */
+    public void deleteInProject(Path file, String project) {
+        try {
+            new Command(OC, "delete", "-f", file.toAbsolutePath().toString(), "-n", project).runAndWait();
+        } catch (Exception e) {
+            fail("Failed to apply resource " + file.toAbsolutePath().toString() + " . Caused by " + e.getMessage());
         }
     }
 
@@ -125,7 +160,7 @@ public final class OpenShiftClient {
     public void applyServicePropertiesUsingTemplate(Service service, String file, UnaryOperator<String> update, Path target) {
         String content = FileUtils.loadFile(file);
         content = enrichTemplate(service, update.apply(content));
-        apply(service, FileUtils.copyContentTo(content, target));
+        apply(FileUtils.copyContentTo(content, target));
     }
 
     /**
@@ -207,13 +242,33 @@ public final class OpenShiftClient {
         }
     }
 
+    /**
+     * Waits until the Build Config finishes.
+     *
+     * @param buildConfigName
+     */
     public void followBuildConfigLogs(String buildConfigName) {
         untilIsNotNull(client.buildConfigs().withName(buildConfigName)::get);
         try {
-            new Command(OC, "logs", "bc/" + buildConfigName, "--follow").runAndWait();
+            new Command(OC, "logs", "bc/" + buildConfigName, "--follow", "-n", currentNamespace).runAndWait();
         } catch (Exception e) {
             fail("Log retrieval from bc failed. Caused by " + e.getMessage());
         }
+
+        if (isBuildFailed(buildConfigName)) {
+            fail("Build failed");
+        }
+    }
+
+    /**
+     * Check whether the build failed.
+     *
+     * @param buildConfigName
+     * @return
+     */
+    public boolean isBuildFailed(String buildConfigName) {
+        return client.builds().withLabel("buildconfig", buildConfigName).list().getItems().stream()
+                .anyMatch(build -> BUILD_FAILED_STATUS.equals(build.getStatus().getPhase()));
     }
 
     /**
@@ -410,12 +465,46 @@ public final class OpenShiftClient {
 
     /**
      * Returns whether the service name is a serverless (knative) service.
+     * If the underlying API returns an exception, it will return false.
      *
      * @param serviceName
      * @return
      */
     public boolean isServerlessService(String serviceName) {
-        return kn.services().withName(serviceName).get() != null;
+        try {
+            return kn.services().withName(serviceName).get() != null;
+        } catch (Exception ex) {
+            Log.warn("Failed to check serverless service. Will assume it's not serverless", ex);
+            return false;
+        }
+    }
+
+    /**
+     * @return status of the namespace.
+     */
+    public String getEvents() {
+        List<String> output = new ArrayList<>();
+        try {
+            new Command(OC, "get", "events", "-n", currentNamespace).outputToLines(output).runAndWait();
+        } catch (Exception ex) {
+            Log.warn("Failed to get project status", ex);
+        }
+
+        return output.stream().collect(Collectors.joining(System.lineSeparator()));
+    }
+
+    /**
+     * @return status of the namespace.
+     */
+    public String getStatus() {
+        List<String> output = new ArrayList<>();
+        try {
+            new Command(OC, "status", "--suggest", "-n", currentNamespace).outputToLines(output).runAndWait();
+        } catch (Exception ex) {
+            Log.warn("Failed to get project status", ex);
+        }
+
+        return output.stream().collect(Collectors.joining(System.lineSeparator()));
     }
 
     /**

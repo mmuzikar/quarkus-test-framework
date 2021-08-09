@@ -91,7 +91,7 @@ public class RouteResource extends RouteBuilder {
                 })
                 .marshal(hl7DataFormat)
                 .toF("mllp://localhost:%d", ServerResource.PORT)
-                .log("Received back ${header.CamelMllpAcknowledgement}")
+                .log("Received back ${headers}")
                 .transform(simple("Patient ${header.patientName} was created"));
 
         from("direct:movePatient")

@@ -59,4 +59,15 @@ public class AppIT {
             app.given().when().get("/client/patient/1").then().body(Matchers.containsString("Home"));
         });
     }
+
+    @Test
+    public void invalidPerson() throws Exception {
+        app.given().when()
+                .body(new PatientPojo(-5, "Shatisha Aziz", "Some facility", "N", "Closer Road 5130, Castleberry, Cuba, 716300"))
+                .post("/createPatient")
+                .then()
+                .log()
+                .all()
+                .statusCode(200);
+    }
 }

@@ -47,6 +47,11 @@ public class BaseService<T extends Service> implements Service {
     }
 
     @Override
+    public String getDisplayName() {
+        return managedResource.getDisplayName();
+    }
+
+    @Override
     public Configuration getConfiguration() {
         return configuration;
     }
@@ -93,14 +98,16 @@ public class BaseService<T extends Service> implements Service {
     @Override
     public boolean isRunning() {
         Log.debug(this, "Checking if resource is running");
-        boolean isRunning = managedResource != null && managedResource.isRunning();
-        if (isRunning) {
-            Log.debug(this, "Resource is running");
-        } else {
+        if (managedResource == null) {
             Log.debug(this, "Resource is not running");
+            return false;
+        } else if (managedResource.isFailed()) {
+            managedResource.stop();
+            fail("Resource failed to start");
         }
 
-        return isRunning;
+        Log.debug(this, "Resource is running");
+        return managedResource.isRunning();
     }
 
     public String getHost() {
@@ -141,13 +148,13 @@ public class BaseService<T extends Service> implements Service {
             return;
         }
 
-        Log.debug(this, "Starting service");
+        Log.debug(this, "Starting service (%s)", getDisplayName());
 
         onPreStartActions.forEach(a -> a.handle(this));
         managedResource.start();
         waitUntilServiceIsStarted();
         onPostStartActions.forEach(a -> a.handle(this));
-        Log.info(this, "Service started");
+        Log.info(this, "Service started (%s)", getDisplayName());
     }
 
     /**
@@ -159,10 +166,10 @@ public class BaseService<T extends Service> implements Service {
             return;
         }
 
-        Log.debug(this, "Stopping service");
+        Log.debug(this, "Stopping service (%s)", getDisplayName());
         managedResource.stop();
 
-        Log.info(this, "Service stopped");
+        Log.info(this, "Service stopped (%s)", getDisplayName());
     }
 
     @Override
@@ -209,6 +216,7 @@ public class BaseService<T extends Service> implements Service {
                 .getAsDuration(SERVICE_STARTUP_TIMEOUT, SERVICE_STARTUP_TIMEOUT_DEFAULT);
         untilIsTrue(this::isRunning, AwaitilitySettings
                 .using(startupCheckInterval, startupTimeout)
+                .doNotIgnoreExceptions()
                 .withService(this)
                 .timeoutMessage("Service didn't start in %s minutes", startupTimeout));
     }

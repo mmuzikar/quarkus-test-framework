@@ -35,7 +35,7 @@ public class ClientResource {
     @Inject
     ConsumerTemplate consumerTemplate;
 
-    private static Logger log = LoggerFactory.getLogger(ClientResource.class);
+    private static final Logger log = LoggerFactory.getLogger(ClientResource.class);
 
     @Path("/facility/{id}")
     @POST

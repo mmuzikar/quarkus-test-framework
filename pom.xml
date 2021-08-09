@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>io.quarkus.qe</groupId>
     <artifactId>quarkus-test-parent</artifactId>
-    <version>0.0.4-SNAPSHOT</version>
+    <version>0.0.6-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Quarkus - Test Framework - Parent</name>
     <description>Quarkus QE Test Framework is a library enabling the developers to easily deploy multiple Quarkus applications across different platforms in a single test.</description>
@@ -42,14 +42,15 @@
         <testcontainers.version>1.16.0</testcontainers.version>
         <jacoco-maven-plugin.version>0.8.7</jacoco-maven-plugin.version>
         <jaeger-client.version>1.6.0</jaeger-client.version>
+        <prometheus.simpleclient_pushgateway.version>0.11.0</prometheus.simpleclient_pushgateway.version>
         <maven-checkstyle-plugin.version>3.1.2</maven-checkstyle-plugin.version>
         <formatter-maven-plugin.version>2.16.0</formatter-maven-plugin.version>
         <impsort-maven-plugin.version>1.6.2</impsort-maven-plugin.version>
-        <htmlunit.version>2.40.0</htmlunit.version>
+        <htmlunit.version>2.52.0</htmlunit.version>
         <xml-format-maven-plugin.version>3.2.0</xml-format-maven-plugin.version>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus</quarkus.platform.group-id>
-        <quarkus.platform.version>2.0.3.Final</quarkus.platform.version>
+        <quarkus.platform.version>2.1.1.Final</quarkus.platform.version>
         <quarkus-plugin.version>${quarkus.platform.version}</quarkus-plugin.version>
         <exclude.tests.with.tags>quarkus-cli</exclude.tests.with.tags>
         <include.tests>**/*IT.java</include.tests>
@@ -59,7 +60,7 @@
         <src.format.goal>format</src.format.goal>
         <src.sort.goal>sort</src.sort.goal>
         <xml.format.goal>xml-format</xml.format.goal>
-        <checkstyle.version>8.44</checkstyle.version>
+        <checkstyle.version>8.45</checkstyle.version>
         <!-- Code Coverage Properties-->
         <jacoco.agent.argLine/>
     </properties>
@@ -153,6 +154,11 @@
                 <groupId>net.sourceforge.htmlunit</groupId>
                 <artifactId>htmlunit</artifactId>
                 <version>${htmlunit.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.prometheus</groupId>
+                <artifactId>simpleclient_pushgateway</artifactId>
+                <version>${prometheus.simpleclient_pushgateway.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -379,6 +385,7 @@
                 <module>examples/external-applications</module>
                 <module>examples/tracing-extension</module>
                 <module>examples/healthcare-integration</module>
+                <module>examples/metrics-extension</module>
             </modules>
         </profile>
         <profile>

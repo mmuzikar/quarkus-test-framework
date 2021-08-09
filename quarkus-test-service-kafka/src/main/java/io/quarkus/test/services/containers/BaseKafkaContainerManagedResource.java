@@ -26,6 +26,11 @@ public abstract class BaseKafkaContainerManagedResource extends DockerContainerM
     protected abstract GenericContainer<?> initRegistryContainer(GenericContainer<?> kafka);
 
     @Override
+    public String getDisplayName() {
+        return model.getImage() + ":" + model.getVersion();
+    }
+
+    @Override
     public void start() {
         super.start();
 
@@ -62,7 +67,7 @@ public abstract class BaseKafkaContainerManagedResource extends DockerContainerM
 
         if (model.isWithRegistry()) {
             schemaRegistry = initRegistryContainer(kafkaContainer);
-            schemaRegistryLoggingHandler = new TestContainersLoggingHandler(model.getContext(), schemaRegistry);
+            schemaRegistryLoggingHandler = new TestContainersLoggingHandler(model.getContext().getOwner(), schemaRegistry);
 
             // Setup common network for kafka and the registry
             network = Network.newNetwork();

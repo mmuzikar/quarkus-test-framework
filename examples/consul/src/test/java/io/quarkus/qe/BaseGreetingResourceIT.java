@@ -1,6 +1,7 @@
 package io.quarkus.qe;
 
 import static io.quarkus.test.utils.AwaitilityUtils.untilAsserted;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.apache.http.HttpStatus;
@@ -15,6 +16,7 @@ import io.quarkus.test.services.QuarkusApplication;
 public abstract class BaseGreetingResourceIT {
 
     private static final String CUSTOM_PROPERTY = "my.property";
+    private static final String KEY = "config/examples-consul";
 
     @LookupService
     static ConsulService consul;
@@ -31,12 +33,17 @@ public abstract class BaseGreetingResourceIT {
         thenGreetingsApiReturns("Hello Test");
     }
 
+    @Test
+    public void shouldFindPropertyFromCustomSource() {
+        app.given().get("/api/from-custom-source").then().statusCode(HttpStatus.SC_OK).body(is("Hello Config Source!"));
+    }
+
     protected static final void onLoadConfigureConsul(Service service) {
-        consul.loadPropertiesFromFile("application.properties");
+        consul.loadPropertiesFromFile(KEY, "application.properties");
     }
 
     private void whenUpdateCustomPropertyTo(String newValue) {
-        consul.loadPropertiesFromString(CUSTOM_PROPERTY + "=" + newValue);
+        consul.loadPropertiesFromString(KEY, CUSTOM_PROPERTY + "=" + newValue);
 
         app.stop();
         app.start();

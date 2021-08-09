@@ -14,8 +14,10 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 
 import io.quarkus.test.bootstrap.Protocol;
-import io.quarkus.test.logging.FileQuarkusApplicationLoggingHandler;
+import io.quarkus.test.logging.FileServiceLoggingHandler;
+import io.quarkus.test.logging.Log;
 import io.quarkus.test.logging.LoggingHandler;
+import io.quarkus.test.utils.ProcessBuilderProvider;
 import io.quarkus.test.utils.ProcessUtils;
 import io.quarkus.test.utils.SocketUtils;
 
@@ -33,6 +35,7 @@ public abstract class LocalhostQuarkusApplicationManagedResource extends Quarkus
     private int assignedGrpcPort;
 
     public LocalhostQuarkusApplicationManagedResource(QuarkusApplicationManagedResourceBuilder model) {
+        super(model.getContext());
         this.model = model;
         this.logOutputFile = new File(model.getContext().getServiceFolder().resolve(LOG_OUTPUT_FILE).toString());
     }
@@ -48,13 +51,16 @@ public abstract class LocalhostQuarkusApplicationManagedResource extends Quarkus
 
         try {
             assignPorts();
-            process = new ProcessBuilder(prepareCommand(getPropertiesForCommand()))
+            List<String> command = prepareCommand(getPropertiesForCommand());
+            Log.info("Running command: %s", String.join(" ", command));
+
+            process = ProcessBuilderProvider.command(command)
                     .redirectErrorStream(true)
                     .redirectOutput(logOutputFile)
                     .directory(model.getContext().getServiceFolder().toFile())
                     .start();
 
-            loggingHandler = new FileQuarkusApplicationLoggingHandler(model.getContext(), logOutputFile);
+            loggingHandler = new FileServiceLoggingHandler(model.getContext().getOwner(), logOutputFile);
             loggingHandler.startWatching();
 
         } catch (Exception e) {
@@ -102,6 +108,11 @@ public abstract class LocalhostQuarkusApplicationManagedResource extends Quarkus
         }
 
         start();
+    }
+
+    @Override
+    public boolean isRunning() {
+        return process != null && process.isAlive() && super.isRunning();
     }
 
     @Override

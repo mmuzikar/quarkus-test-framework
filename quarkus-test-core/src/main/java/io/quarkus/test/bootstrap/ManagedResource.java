@@ -5,6 +5,11 @@ import java.util.List;
 public interface ManagedResource {
 
     /**
+     * @return name of the running resource.
+     */
+    String getDisplayName();
+
+    /**
      * Start the resource. If the resource is already started, it will do nothing.
      *
      * @throws RuntimeException when application errors at startup.
@@ -30,6 +35,13 @@ public interface ManagedResource {
      * @return if the resource is running.
      */
     boolean isRunning();
+
+    /**
+     * @return if the resource has failed.
+     */
+    default boolean isFailed() {
+        return false;
+    }
 
     /**
      * @return the list of logs.

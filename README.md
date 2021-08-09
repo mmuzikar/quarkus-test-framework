@@ -370,6 +370,8 @@ public class AuthzSecurityHttpsIT {
 
 This test will not run if the quarkus version is `1.13.X`.
 
+Moreover, if we are building Quarkus upstream ourselves, we can also disable tests on Quarkus upstream snapshot version (999-SNAPSHOT) using `@DisabledOnQuarkusSnapshot`.
+
 ### Containers 
 
 The framework also supports to deployment of third party components provided by docker. First, we need an additional module:
@@ -398,6 +400,11 @@ public class GreetingResourceIT {
     // ...
 }
 ```
+
+#### Privileged Mode
+Some containers require `--privileged` mode to run properly. This mode can be enabled on a per-container basis via property `ts.<YOUR SERVICE NAME>.container.privileged-mode=true` or for all containers via property `ts.global.container.privileged-mode=true`. This property only affects containers which are both: 
+1) Deployed on bare metal, not in Kubernetes/OpenShift.
+2) Use `@Container` annotation, not a specialised one(`@KafkaContainer`, `@AmqContainer`, etc).
 
 #### Kafka Containers
 
@@ -593,6 +600,11 @@ test using:
 ```
 mvn clean verify -Dts.openshift.delete.project.after.all=false
 ```
+
+#### Print useful information on errors
+
+The test framework will print the project status, events and pod logs when a test fails. This functionality is enabled by default, 
+however it can be disabled using the property `-Dts.openshift.print.info.on.error=false`.
 
 #### Operators
 
@@ -1149,3 +1161,9 @@ The test framework will trace all your test/method invocations, so you can revie
 or filter by tags as `openshift`, `bare-metal`, `k8s` or errors. 
 
 For more information about this feature, go to [the Tracing page](/misc/Tracing.md).
+
+- Test Metrics 
+
+The test framework will aggregate an over all metrics and push it to prometheus. 
+
+For more information about this feature, go to [the Metrics page](/misc/Metrics.md).

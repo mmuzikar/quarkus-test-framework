@@ -1,5 +1,6 @@
 package io.quarkus.qe.server;
 
+import static org.apache.camel.component.hl7.HL7.ack;
 import static org.apache.camel.component.hl7.HL7.hl7terser;
 
 import java.nio.charset.StandardCharsets;
@@ -15,10 +16,13 @@ import javax.inject.Inject;
 import org.apache.camel.Predicate;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.component.hl7.HL7DataFormat;
+import org.apache.camel.component.mllp.MllpConstants;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ca.uhn.hl7v2.AcknowledgmentCode;
+import ca.uhn.hl7v2.ErrorCode;
 import ca.uhn.hl7v2.model.v26.message.ADT_A01;
 import io.agroal.api.AgroalDataSource;
 
@@ -49,7 +53,7 @@ public class RouteResource extends RouteBuilder {
 
     @Override
     public void configure() throws Exception {
-        String sql = IOUtils.resourceToString("/import.sql", StandardCharsets.UTF_8);
+        String sql = IOUtils.toString(RouteResource.class.getResource("/import.sql"), StandardCharsets.UTF_8);
         sql.lines().forEach(line -> {
             try (final Connection connection = dataSource.getConnection();
                     final Statement statement = connection.createStatement();) {
@@ -59,12 +63,21 @@ public class RouteResource extends RouteBuilder {
             }
         });
 
+        onException(InvalidKeyException.class)
+                .log("Received InvalidKeyException, sending negative ack")
+                .handled(true)
+                .transform(ack());
+
         hl7DataFormat = new HL7DataFormat();
-        fromF("mllp://localhost:%d", ServerResource.PORT)
+        fromF("mllp://localhost:%d?autoAck=false", ServerResource.PORT)
                 .log("Received MLLP Message ${headers}")
                 .unmarshal(hl7DataFormat)
+                .log("Processing patient ${body}")
                 .choice()
                 .when(hl7terser("PID-2-1").isNull()).throwException(new InvalidKeyException("Patient must have an ID"))
+                .when(hl7terser("PID-2-1").not().regex("^\\d+"))
+                .transform(ack(AcknowledgmentCode.AR, "IDs must be unsigned int", ErrorCode.UNKNOWN_KEY_IDENTIFIER))
+                .process(exchange -> exchange.setProperty(MllpConstants.MLLP_ACKNOWLEDGEMENT_TYPE, AcknowledgmentCode.AR))
                 .when(patientExists())
                 .log("PATIENT EXISTS, updating...")
                 .process(exchange -> {
@@ -78,6 +91,7 @@ public class RouteResource extends RouteBuilder {
                             Integer.parseInt(message.getPID().getPatientID().getIDNumber().getValue())
                     });
                 })
+                .transform(ack())
                 .to("sql:UPDATE patient SET name = #, address = #, class = #, facility = # where id = #")
                 .log("${headers} ${body}")
                 .otherwise()
@@ -93,6 +107,7 @@ public class RouteResource extends RouteBuilder {
                     });
                 })
                 .to("sql:INSERT INTO mydb.patient VALUES (#, #, #, #, #)")
+                .transform(ack())
                 .log("sent sql ${body}")
                 .endChoice();
     }

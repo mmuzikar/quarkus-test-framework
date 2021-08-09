@@ -19,6 +19,7 @@ import org.apache.commons.lang3.StringUtils;
 public final class FileUtils {
 
     private static final int NO_RECURSIVE = 1;
+    private static final String TARGET = "target";
 
     private FileUtils() {
 
@@ -69,6 +70,12 @@ public final class FileUtils {
         }
     }
 
+    public static void createDirectoryIfDoesNotExist(Path folder) {
+        if (!Files.exists(folder)) {
+            folder.toFile().mkdirs();
+        }
+    }
+
     public static void copyFileTo(File file, Path target) {
         try {
             org.apache.commons.io.FileUtils.copyFileToDirectory(file, target.toFile());
@@ -88,7 +95,7 @@ public final class FileUtils {
     public static void copyCurrentDirectoryTo(Path target) {
         try {
             org.apache.commons.io.FileUtils.copyDirectory(Paths.get(".").toFile(), target.toFile(),
-                    path -> !StringUtils.contains(path.toString(), "target"));
+                    path -> !StringUtils.contains(path.toString(), TARGET));
         } catch (IOException e) {
             fail("Could not copy project. Caused by " + e.getMessage());
         }
@@ -114,7 +121,7 @@ public final class FileUtils {
 
     public static Optional<String> findTargetFile(String subFolder, String endsWith) {
         try (Stream<Path> binariesFound = Files
-                .find(Paths.get("target/" + subFolder), NO_RECURSIVE,
+                .find(Paths.get(TARGET, subFolder), NO_RECURSIVE,
                         (path, basicFileAttributes) -> path.toFile().getName().endsWith(endsWith))) {
             return binariesFound.map(path -> path.normalize().toString()).findFirst();
         } catch (IOException ex) {
