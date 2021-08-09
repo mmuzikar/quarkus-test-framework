@@ -1,0 +1,3 @@
+CREATE TABLE mydb.patient (id int AUTO_INCREMENT, name VARCHAR(120), address VARCHAR(120), class CHAR(1), facility VARCHAR(50), PRIMARY KEY(id));
+INSERT INTO mydb.patient (id, name, address, class, facility) VALUES (1, 'David', '771 Carroll Street, Johnsonburg, Hawaii, 2736', 'I', 'A-01');
+INSERT INTO mydb.patient (id, name, address, class, facility) VALUES (2, 'Peter', '627 Withers Street, Waterloo, Illinois, 5610', 'O', '');
