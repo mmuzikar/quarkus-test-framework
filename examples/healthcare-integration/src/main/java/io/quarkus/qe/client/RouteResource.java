@@ -5,16 +5,21 @@ import java.util.Date;
 
 import javax.enterprise.context.ApplicationScoped;
 
+import org.apache.camel.Exchange;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.component.hl7.HL7DataFormat;
 import org.apache.camel.component.mllp.MllpAcknowledgementException;
+import org.apache.camel.component.mllp.MllpConstants;
 import org.apache.camel.model.rest.RestBindingMode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import ca.uhn.hl7v2.HL7Exception;
 import ca.uhn.hl7v2.model.v26.datatype.PL;
 import ca.uhn.hl7v2.model.v26.datatype.XAD;
 import ca.uhn.hl7v2.model.v26.datatype.XCN;
 import ca.uhn.hl7v2.model.v26.datatype.XPN;
+import ca.uhn.hl7v2.model.v26.message.ACK;
 import ca.uhn.hl7v2.model.v26.message.ADT_A01;
 import ca.uhn.hl7v2.model.v26.segment.EVN;
 import ca.uhn.hl7v2.model.v26.segment.MSH;
@@ -27,11 +32,19 @@ import io.quarkus.qe.shared.PatientPojo;
 public class RouteResource extends RouteBuilder {
 
     private static HL7DataFormat hl7DataFormat;
+    private static Logger log = LoggerFactory.getLogger(RouteResource.class);
     int sequenceNumber = 0;
 
     @Override
     public void configure() throws Exception {
-        onException(MllpAcknowledgementException.class).logStackTrace(true).log("CLIENT FAILED");
+        onException(MllpAcknowledgementException.class).log("CLIENT FAILED ${body} ${headers}")
+                .setHeader(Exchange.HTTP_RESPONSE_CODE, constant(400))
+                .process(exchange -> {
+                    final ACK errMsg = (ACK) hl7DataFormat.getParser()
+                            .parse(exchange.getMessage().getHeader(MllpConstants.MLLP_ACKNOWLEDGEMENT_STRING, String.class));
+                    exchange.getMessage().setBody(" error: " + errMsg.printStructure());
+                })
+                .handled(true);
         restConfiguration().bindingMode(RestBindingMode.json);
 
         hl7DataFormat = new HL7DataFormat();
@@ -40,9 +53,7 @@ public class RouteResource extends RouteBuilder {
                 .unmarshal().json(PatientPojo.class)
                 .setHeader("patientName", simple("${body.getName()}"))
                 .setBody(exchange -> {
-                    System.out.println(exchange.getMessage().getBody());
                     PatientPojo patient = exchange.getMessage().getBody(PatientPojo.class);
-                    System.out.println(patient);
                     final ADT_A01 message = new ADT_A01();
                     Date currentDate = new Date();
                     try {

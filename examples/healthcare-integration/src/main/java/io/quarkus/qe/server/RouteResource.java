@@ -66,7 +66,13 @@ public class RouteResource extends RouteBuilder {
         onException(InvalidKeyException.class)
                 .log("Received InvalidKeyException, sending negative ack")
                 .handled(true)
-                .transform(ack());
+                .process(exchange -> {
+                    exchange.setProperty(MllpConstants.MLLP_ACKNOWLEDGEMENT_TYPE, AcknowledgmentCode.AR);
+                    exchange.setProperty(MllpConstants.MLLP_ACKNOWLEDGEMENT,
+                            ack(AcknowledgmentCode.AE, "SERVER ERROR", ErrorCode.APPLICATION_INTERNAL_ERROR)
+                                    .evaluate(exchange, Object.class));
+                    exchange.setProperty(MllpConstants.MLLP_ACKNOWLEDGEMENT_STRING, "SERVER ERROR 2");
+                });
 
         hl7DataFormat = new HL7DataFormat();
         fromF("mllp://localhost:%d?autoAck=false", ServerResource.PORT)
@@ -76,12 +82,23 @@ public class RouteResource extends RouteBuilder {
                 .choice()
                 .when(hl7terser("PID-2-1").isNull()).throwException(new InvalidKeyException("Patient must have an ID"))
                 .when(hl7terser("PID-2-1").not().regex("^\\d+"))
-                .transform(ack(AcknowledgmentCode.AR, "IDs must be unsigned int", ErrorCode.UNKNOWN_KEY_IDENTIFIER))
-                .process(exchange -> exchange.setProperty(MllpConstants.MLLP_ACKNOWLEDGEMENT_TYPE, AcknowledgmentCode.AR))
+                //            .transform(ack(AcknowledgmentCode.AR, "IDs must be unsigned int", ErrorCode.UNKNOWN_KEY_IDENTIFIER))
+                .process(exchange -> {
+                    exchange.setProperty(MllpConstants.MLLP_ACKNOWLEDGEMENT_TYPE, AcknowledgmentCode.AR);
+                    exchange.setProperty(MllpConstants.MLLP_ACKNOWLEDGEMENT,
+                            ack(AcknowledgmentCode.AR, "IDs must be unsigned int", ErrorCode.UNKNOWN_KEY_IDENTIFIER)
+                                    .evaluate(exchange, Object.class));
+                    //                    exchange.setProperty(MllpConstants.MLLP_ACKNOWLEDGEMENT_STRING, "TEST");
+                })
                 .when(patientExists())
                 .log("PATIENT EXISTS, updating...")
                 .process(exchange -> {
                     final ADT_A01 message = exchange.getMessage().getBody(ADT_A01.class);
+                    exchange.setProperty(MllpConstants.MLLP_ACKNOWLEDGEMENT_TYPE, AcknowledgmentCode.AA);
+                    exchange.setProperty(MllpConstants.MLLP_ACKNOWLEDGEMENT,
+                            ack()
+                                    .evaluate(exchange, Object.class));
+                    //                    exchange.setProperty(MllpConstants.MLLP_ACKNOWLEDGEMENT_STRING, "TEST - SUCCESS");
                     exchange.getMessage().setBody(new Object[] {
                             message.getPID().getPatientName(0).getGivenName() + " "
                                     + message.getPID().getPatientName(0).getFamilyName(),
@@ -91,12 +108,16 @@ public class RouteResource extends RouteBuilder {
                             Integer.parseInt(message.getPID().getPatientID().getIDNumber().getValue())
                     });
                 })
-                .transform(ack())
                 .to("sql:UPDATE patient SET name = #, address = #, class = #, facility = # where id = #")
                 .log("${headers} ${body}")
                 .otherwise()
                 .process(exchange -> {
                     final ADT_A01 message = exchange.getMessage().getBody(ADT_A01.class);
+                    exchange.setProperty(MllpConstants.MLLP_ACKNOWLEDGEMENT_TYPE, AcknowledgmentCode.AA);
+                    exchange.setProperty(MllpConstants.MLLP_ACKNOWLEDGEMENT,
+                            ack()
+                                    .evaluate(exchange, Object.class));
+                    //                    exchange.setProperty(MllpConstants.MLLP_ACKNOWLEDGEMENT_STRING, "TEST - SUCCESS");
                     exchange.getMessage().setBody(new Object[] {
                             Integer.parseInt(message.getPID().getPatientID().getIDNumber().getValue()),
                             message.getPID().getPatientName(0).getGivenName() + " "
@@ -107,7 +128,6 @@ public class RouteResource extends RouteBuilder {
                     });
                 })
                 .to("sql:INSERT INTO mydb.patient VALUES (#, #, #, #, #)")
-                .transform(ack())
                 .log("sent sql ${body}")
                 .endChoice();
     }

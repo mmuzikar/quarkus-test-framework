@@ -62,12 +62,16 @@ public class AppIT {
 
     @Test
     public void invalidPerson() throws Exception {
-        app.given().when()
-                .body(new PatientPojo(-5, "Shatisha Aziz", "Some facility", "N", "Closer Road 5130, Castleberry, Cuba, 716300"))
-                .post("/createPatient")
-                .then()
-                .log()
-                .all()
-                .statusCode(200);
+        Awaitility.await().timeout(Duration.of(2, ChronoUnit.SECONDS)).untilAsserted(() -> {
+            app.given().when()
+                    .body(new PatientPojo(-5, "Shatisha Aziz", "Some facility", "N",
+                            "Closer Road 5130, Castleberry, Cuba, 716300"))
+                    .post("/createPatient")
+                    .then()
+                    .statusCode(400)
+                    .body(Matchers.containsString("Unknown key identifier"),
+                            Matchers.containsString("IDs must be unsigned int"))
+                    .body(Matchers.containsString("AR"), Matchers.containsString("204"));
+        });
     }
 }
